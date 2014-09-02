@@ -23,11 +23,11 @@
 #  
 
 from morse.builder import *
-
+import math
 def main():
 	human = Human()
 	human.use_world_camera()
-	#human.disable_keyboard_control()
+	human.disable_keyboard_control()
 	pose = Pose()
 	human.append(pose)
 	pose.add_stream('socket')
@@ -36,7 +36,14 @@ def main():
 	motion = MotionVW()
 	robot.append(motion)
 	motion.add_stream('socket')
-
+	
+	videoCam = VideoCamera()
+	videoCam.translate(z=1.0)
+	#videoCam.rotate(0,0,math.pi)
+	videoCam.properties(cam_width=640, cam_height=480)
+	robot.append(videoCam)
+	videoCam.add_stream('socket')
+	
 	robot.translate(1.0, 0.0, 0.0)
 
 	keyboard = Keyboard()
@@ -54,8 +61,12 @@ def main():
 	robot.append(camera)
 	camera.add_stream('socket')
 	camera.add_service('socket')
-	env = Environment('apartment')
+	env = Environment('indoors-1/indoor-1')
 	env.show_framerate(True)
+	env.select_display_camera(videoCam)
+	env.set_animation_record(True)
+	env.set_horizon_color(color=(1.0,1.0,1.0))
+	env.set_camera_clip(clip_end= 30)
 	
 	
 	return 0
