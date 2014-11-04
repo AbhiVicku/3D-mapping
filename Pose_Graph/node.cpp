@@ -47,6 +47,8 @@
 #include <boost/graph/graph_utility.hpp>
 #include <boost/property_map/property_map.hpp>
 #include <Eigen/Dense>
+#include <boost/graph/graphviz.hpp>
+
 
 typedef std::deque< pcl::PointCloud<pcl::PointXYZ> > cloud_seq;
 typedef std::deque<std::list<double> > pose_seq;
@@ -82,26 +84,9 @@ cloud_seq cloud_seq_loaded;
 pose_seq pose_seq_loaded;
 const float res = 0.1;
 pcl::PointCloud<pcl::PointXYZ> static_pc;
+int count = 0;
 
 void createGraph(const Eigen::Matrix4f tr_msg){
-	
-	
-	Vertex v1 ;
-	v1 = boost::add_vertex(g);
-	g[v1].key = 40;
-	g[v1].data  = pose_seq_loaded[0];
-	
-	Vertex v2 ;
-	v2 = boost::add_vertex(g);
-	g[v2].key = 21;
-	g[v2].data = pose_seq_loaded[1];
-	
-	
-	Edge e1; 
-	e1 = (boost::add_edge(v1,v2,g)).first;
-	g[e1].transformation = tr_msg;
-	
-	
 	
 	//Iterate over the graph 
 	Graph::vertex_iterator vertexIt,vertexEnd;
@@ -109,21 +94,41 @@ void createGraph(const Eigen::Matrix4f tr_msg){
 	
 	
 	boost::tie(vertexIt, vertexEnd) = boost::vertices(g);
+	
+	
+	
+	Vertex v1 ;
+	v1 = boost::add_vertex(g);
+	g[v1].key = count;
+	g[v1].data  = pose_seq_loaded[1];
+	count++;
+	
+	
+	
+	Edge e1; 
+	e1 = (boost::add_edge(v1,*(vertexEnd-1),g)).first;
+	g[e1].transformation = tr_msg;
+	
+	
+	
+	
+	
+	/*
 	for(;vertexIt!=vertexEnd;++vertexIt)
 	{
-		std::cout<<g[*vertexIt].key<<"is connected with";
+		//std::cout<<g[*vertexIt].key<<"is connected with";
 		boost::tie(neighbourIt,neighbourEnd) = boost::adjacent_vertices(*vertexIt,g);
 		for(;neighbourIt != neighbourEnd;++neighbourIt)
-		std::cout<<g[*neighbourIt].key<<" ";
+		//std::cout<<g[*neighbourIt].key<<" ";
 		std::cout<<std::endl;
 		}
 	Graph::edge_iterator edgeIt,edgeEnd;
 	boost:tie(edgeIt,edgeEnd) = boost::edges(g);
 	for(;edgeIt!=edgeEnd;++edgeIt){
-		std::cout<<g[*edgeIt].transformation<<std::endl;
-		
+		//std::cout<<g[*edgeIt].transformation<<std::endl;
+		std::cout<<std::endl;
 		}
-	
+	*/
 	
 	}
 
@@ -176,7 +181,7 @@ void processCloud(const sensor_msgs::PointCloud2 msg)
 		
 		pcl::StatisticalOutlierRemoval<pcl::PointXYZ> dy_sor;
 		dy_sor.setInputCloud (curr_pc);
-		dy_sor.setMeanK (50);
+		dy_sor.setMeanK (20);
 		dy_sor.setStddevMulThresh (1.0);
 		dy_sor.filter (*curr_pc);
 	
@@ -190,7 +195,12 @@ void processCloud(const sensor_msgs::PointCloud2 msg)
 	
 	}
 	if(cloud_seq_loaded.size()==1){
-		static_pc = pcl_pc;
+		//Add first vertex ;
+		Vertex v;
+		v = boost::add_vertex(g);
+		g[v].key = count;
+		g[v].data  = pose_seq_loaded[0];
+		count++;
 		}
 	if(cloud_seq_loaded.size()==2)
 	{
@@ -209,80 +219,12 @@ void processCloud(const sensor_msgs::PointCloud2 msg)
 		tr_mat = icp.getFinalTransformation();
 		std::cout<<tr_mat<<std::endl;
 		createGraph(tr_mat);
+		std::cout<<std::endl;
+		boost::write_graphviz(std::cout, g);
+		std::cout<<std::endl;
 		}
 		
-	/*
-	//*********** Remove old data, update the data***************	
-	cloud_seq_loaded.push_back(pcl_pc);
-	std::cout<<cloud_seq_loaded.size()<<std::endl;
-	
-	if(cloud_seq_loaded.size()>2){
-		cloud_seq_loaded.pop_front();
-	
-	}
-	if(cloud_seq_loaded.size()==1){
-		static_pc = pcl_pc;
-		}
-	
-	//*********** Process currently observerd and buffered data*********
-
-	if(cloud_seq_loaded.size()==2){
-		
-		
-		*prev_pc =static_pc; //cloud_seq_loaded.front(); ss
-		
-		//*************Create octree structure and search
-		pcl::octree::OctreePointCloudChangeDetector<pcl::PointXYZ> octree (0.5);
-		octree.setInputCloud(prev_pc);
-		octree.addPointsFromInputCloud();
-		octree.switchBuffers();
-		octree.setInputCloud(curr_pc);
-		octree.addPointsFromInputCloud();
-		std::vector<int> newPointIdxVector;
-		// Get vector of point indices from octree voxels which did not exist in previous buffer
-		octree.getPointIndicesFromNewVoxels (newPointIdxVector);
-		std::cout << "Output from getPointIndicesFromNewVoxels:" << std::endl;
-		pcl::PointCloud<pcl::PointXYZ>::Ptr dynamic_points (new pcl::PointCloud<pcl::PointXYZ>);
-		dynamic_points->header.frame_id = "some_tf_frame";
-		
-		for (size_t i = 0; i < newPointIdxVector.size (); ++i){
-			pcl::PointXYZ point;
-			point.x = pcl_pc.points[newPointIdxVector[i]].x;
-			point.y = pcl_pc.points[newPointIdxVector[i]].y;
-			point.z = pcl_pc.points[newPointIdxVector[i]].z;
-			dynamic_points->push_back(point);
-			//std::cout << i << "# Index:" << newPointIdxVector[i]<< "  Point:" << pcl_pc.points[newPointIdxVector[i]].x << " "<< pcl_pc.points[newPointIdxVector[i]].y << " "<< pcl_pc.points[newPointIdxVector[i]].z << std::endl;
-			
-		}	
-		std::cout<<newPointIdxVector.size ()<<std::endl;
-		
-		//***************Filter point cloud to detect nearby changes only *****************
-		pcl::PassThrough<pcl::PointXYZ> pass;
-		pass.setInputCloud (dynamic_points);
-		pass.setFilterFieldName ("z");
-		pass.setFilterLimits (0.0, 3.0);
-		pass.filter (*dynamic_points);
-		
-		pcl::StatisticalOutlierRemoval<pcl::PointXYZ> dy_sor;
-		dy_sor.setInputCloud (dynamic_points);
-		dy_sor.setMeanK (50);
-		dy_sor.setStddevMulThresh (1.0);
-		dy_sor.filter (*dynamic_points);
-		
-		//**********************Publish the data************************************
-		ros::NodeHandle k;
-		ros::Publisher pub = k.advertise<pcl::PointCloud<pcl::PointXYZ> >("dynamicPoints",2);
-		pub.publish(dynamic_points);
-		ros::Time time = ros::Time::now();
-		//Wait a duration of one second.
-		ros::Duration d = ros::Duration(1.5, 0);
-		d.sleep();
-		ros::spinOnce();
-		
-				
-
-		}
-	*/ 
+	 
 	
 	std::cout<<"finished"<<std::endl;
 	std::cout<<std::endl;	
@@ -291,12 +233,14 @@ void processCloud(const sensor_msgs::PointCloud2 msg)
 
 int main(int argc, char **argv)
 {
-
+	
 	ros::init(argc, argv, "pose_graph");
 	std::cout<<"Create object of posegraph"<<std::endl;
 	ros::NodeHandle nh;//create handle
 	uint32_t queue_size = 1;
-	ros::Subscriber sub_pose = nh.subscribe<nav_msgs::Odometry>("/odom",queue_size,getOdom);
+	//ros::Subscriber sub_pose = nh.subscribe<nav_msgs::Odometry>("/odom",queue_size,getOdom);
+	ros::Subscriber sub_pose = nh.subscribe<nav_msgs::Odometry>("/pose",queue_size,getOdom);
+	
 	ros::Subscriber sub_cloud = nh.subscribe<sensor_msgs::PointCloud2>("/camera/depth/points",queue_size,processCloud);
 	ros::spin();	
 	return 0;
