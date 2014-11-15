@@ -1,5 +1,5 @@
 /*
- * demoGraph.cpp
+ * poseGraph.cpp
  * Description: This is the class for pose graph construction.
  * 				It is used for the development of pose graph SLAM in robotics.
  * 
