@@ -30,7 +30,7 @@ class PoseGraph{
 		
 		public:
 		// Add vertex to the graph
-			void addVertex(int v);
+			void addVertex(int v,std::vector<double> odom_);
 		// Add edge in betwwen the last 2 vertices of the graph
 			void addEdgeToPrev(Eigen::Matrix4f tr_msg);
 		// Print the graph
