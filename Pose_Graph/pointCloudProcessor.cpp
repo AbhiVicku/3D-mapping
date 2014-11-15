@@ -20,11 +20,12 @@
  * 
  * 
  */
+//TODO : 
 
 #include "pointCloudProcessor.h"
 // constructor	
-PointCloudProcessor::PointCloudProcessor(){
-	
+void PointCloudProcessor::subr(){
+	std::cout<< "2" << std::endl;
 	uint32_t queue_size = 1;
 	sub_ = nh_.subscribe<sensor_msgs::PointCloud2>("/camera/depth/points",queue_size,&PointCloudProcessor::pclCallbk, this);
 	
@@ -32,11 +33,17 @@ PointCloudProcessor::PointCloudProcessor(){
 
 // Callback function for sensor_msg pointcloud	
 void PointCloudProcessor::pclCallbk(sensor_msgs::PointCloud2 msg){
+	//std::cout<< "subscribing to pcl" <<std::endl;
+	std::cout<< "4" <<std::endl;
 	std::vector<int> nan_indices;
 	pcl_conversions::toPCL(msg,cloud_);
 	pcl::fromPCLPointCloud2(cloud_,curr_pc_);
 	pcl::removeNaNFromPointCloud(curr_pc_,curr_pc_,nan_indices);
-	}
+	/*
+	for (size_t i = 0; i < curr_pc_.size();i++){
+		std::cout << curr_pc_.points[i]<<std::endl;
+	}*/
+}
 
 // Filter processor 	
 void PointCloudProcessor::filterCloud(){
@@ -69,7 +76,11 @@ Eigen::Matrix4f calcICP(pcl::PointCloud<pcl::PointXYZ>::Ptr first_pc,pcl::PointC
 /*			
 int main(int argc, char **argv)
 {	ros::init(argc, argv, "PointCloudrocessor");
-	PointCloudProcessor cld_process();
+	PointCloudProcessor cld_process;
+
+	cld_process.subr();
+	ros::spin();
+	
 	
 	return 0;
 }*/
