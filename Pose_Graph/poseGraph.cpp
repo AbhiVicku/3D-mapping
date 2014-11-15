@@ -23,17 +23,17 @@
  * 
  */
 
-#include <poseGraph.h>
+#include "poseGraph.h"
 
 /*
  * This Function adds the vertex to the graph with the parameter as index of the vertex
  */ 
 	
-void PoseGraph::addVertex(int v){
+void PoseGraph::addVertex(int v, std::vector<double> odom_){
 	Vertex_ v1;
 	v1 = boost::add_vertex(gr_);
 	gr_[v1].key = v ;
-	gr_[v1].data.assign(3,4.0);
+	gr_[v1].data = odom_;
 	return;
 	}
 
