@@ -41,8 +41,9 @@
 #include <Eigen/Dense>
 
 class PointCloudProcessor{
-	private:
-		//different types of clouds are initialized 
+	
+		
+	public:
 		pcl::PCLPointCloud2::Ptr cloud_ptr_ ;
 		pcl::PCLPointCloud2 cloud_ ; 
 		// initializing only pointer without memory allocations results in error
@@ -56,9 +57,8 @@ class PointCloudProcessor{
 		ros::NodeHandle nh_;
 		ros::Subscriber sub_;
 		Eigen::Matrix4f tr_mat_;
-	public:
 		//constructor
-		PointCloudProcessor();
+		void subr();
 		void pclCallbk(sensor_msgs::PointCloud2 msg);
 		//void fetchCloud();
 		void filterCloud();
