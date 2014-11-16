@@ -6,11 +6,13 @@
 #include "odomProcessor.h"
 #include "pointCloudProcessor.h"
 #include "poseGraph.h"
+#include <Eigen/Dense>
 
 int main(int argc, char **argv)
 {
 	/* code */
 	int count = 0;
+	Eigen::Matrix4f tr_mat;
 	ros::init(argc,argv,"example_node");
 	OdomProcess od_p;
 	PointCloudProcessor pcl_p;
@@ -26,11 +28,17 @@ int main(int argc, char **argv)
 		odom_data.push_back(od_p.pose_y);
 		odom_data.push_back(od_p.yaw);		
 		pg.addVertex(count,odom_data);
-		pg.display();
+		if(pcl_p.cloud_seq_loaded.size()==2){
+			
+			pcl_p.calcICP();
+			//pg.addEdgeToPrev(tr_mat);
+			//std::cout << tr_mat << std::endl;
+		}
+		//pg.display();
 		count++;
 		ros::spinOnce();
 	}
-	//ros::spin();
+	
 	
 	return 0;
 }
