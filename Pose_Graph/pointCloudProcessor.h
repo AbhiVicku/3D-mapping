@@ -38,32 +38,75 @@
 #include <pcl/filters/statistical_outlier_removal.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/registration/icp.h>
-#include <Eigen/Dense>
+#include <pcl/registration/gicp.h>
+#include <boost/make_shared.hpp> 
+#include <pcl/features/normal_3d.h>
+ #include <pcl/registration/icp_nl.h>
+#include <pcl/registration/transforms.h>
+ #include <pcl/filters/project_inliers.h>
+ #include <pcl/ModelCoefficients.h>
+ #include <pcl/surface/convex_hull.h>
+ #include <pcl/filters/extract_indices.h>
 
+#include <pcl/surface/convex_hull.h>
+#include <pcl/segmentation/extract_clusters.h>
+#include <pcl/segmentation/sac_segmentation.h>
+#include <pcl/segmentation/extract_polygonal_prism_data.h>
+
+#include <pcl/sample_consensus/method_types.h>
+#include <pcl/sample_consensus/model_types.h>
+#include <Eigen/Dense>
+#include <deque>
+
+#include <pcl/visualization/pcl_visualizer.h>
 class PointCloudProcessor{
 	
 		
 	public:
+		std::deque< pcl::PointCloud<pcl::PointXYZ> > cloud_seq_loaded; 
 		pcl::PCLPointCloud2::Ptr cloud_ptr_ ;
 		pcl::PCLPointCloud2 cloud_ ; 
 		// initializing only pointer without memory allocations results in error
 		
 		//*cloud_ptr_ = cloud_;
 		
-		pcl::PointCloud<pcl::PointXYZ>::Ptr curr_pc_ptr_ ;
+		//pcl::PointCloud<pcl::PointXYZ>::Ptr curr_pc_ptr_ ;
 		pcl::PointCloud<pcl::PointXYZ> curr_pc_;
 		//*curr_pc_ptr_ = curr_pc_;
 		
 		ros::NodeHandle nh_;
 		ros::Subscriber sub_;
+		ros::Publisher pub_;
 		Eigen::Matrix4f tr_mat_;
+		Eigen::Matrix4f prev_tr_mat_;
+		pcl::visualization::PCLVisualizer *p;
+		class MyPointRepresentation : public pcl::PointRepresentation <pcl::PointNormal>
+		{
+  			using pcl::PointRepresentation<pcl::PointNormal>::nr_dimensions_;
+			public:
+  				MyPointRepresentation ()
+  				{
+    				// Define the number of dimensions
+    				nr_dimensions_ = 4;
+  				}
+
+  				// Override the copyToFloatArray method to define our feature vector
+  				virtual void copyToFloatArray (const pcl::PointNormal &p, float * out) const
+  				{
+    				// < x, y, z, curvature >
+    				out[0] = p.x;
+    				out[1] = p.y;
+    				out[2] = p.z;
+    				out[3] = p.curvature;
+  				}
+		};
 		//constructor
 		void subr();
 		void pclCallbk(sensor_msgs::PointCloud2 msg);
 		//void fetchCloud();
-		void filterCloud();
+		pcl::PointCloud<pcl::PointXYZ> filterCloud();
 		//Calculate Iterative closest point matching between the 2 point clouds
-		Eigen::Matrix4f calcICP(pcl::PointCloud<pcl::PointXYZ>::Ptr first_pc,pcl::PointCloud<pcl::PointXYZ>::Ptr second_pc);		
+		void calcICP();		
 	};
 	
 #endif	
