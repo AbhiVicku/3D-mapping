@@ -1,5 +1,5 @@
 // example_node.cpp
-// This is an example node to test the working of existing packages writen
+// This is an example node to test the working of existing packages writen. It is still in development phase
 
 #include <iostream>
 #include <ros/ros.h>
