@@ -30,6 +30,7 @@
  */ 
 	
 void PoseGraph::addVertex(int v, std::vector<double> odom_){
+	std::cout << "Adding vertex "<<std::endl;
 	Vertex_ v1;
 	v1 = boost::add_vertex(gr_);
 	gr_[v1].key = v ;
@@ -42,11 +43,12 @@ void PoseGraph::addVertex(int v, std::vector<double> odom_){
  * The parameter taken is the transformation matrix. 
  */ 
 void PoseGraph::addEdgeToPrev(Eigen::Matrix4f tr_msg){
+	std::cout<<"adding edge to the prev"<< std::endl;
 	Graph_::vertex_iterator vertexIt,vertexEnd;
 	boost::tie(vertexIt, vertexEnd) = boost::vertices(gr_);
-	
+	std::cout<< "vertex End is"<<*vertexEnd<<std::endl;
 	Edge_ e1; 
-	e1 = (boost::add_edge(*(vertexEnd-1),*vertexEnd,gr_)).first;
+	e1 = (boost::add_edge(*(vertexEnd-2),(*vertexEnd-1),gr_)).first;
 	gr_[e1].transformation = tr_msg;
 	
 	return;
