@@ -104,9 +104,9 @@ class PointCloudProcessor{
 		void subr();
 		void pclCallbk(sensor_msgs::PointCloud2 msg);
 		//void fetchCloud();
-		pcl::PointCloud<pcl::PointXYZ> filterCloud();
+		void filterCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in);
 		//Calculate Iterative closest point matching between the 2 point clouds
-		void calcICP();		
+		Eigen::Matrix4f calcICP();		
 	};
 	
 #endif	
