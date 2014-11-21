@@ -34,12 +34,14 @@ void PointCloudProcessor::subr(){
 // Callback function for sensor_msg pointcloud	
 void PointCloudProcessor::pclCallbk(sensor_msgs::PointCloud2 msg){
 	//std::cout<< "subscribing to pcl" <<std::endl;
-	std::cout<< "4" <<std::endl;
+	std::cout<< "Starting point cloud Callback" <<std::endl;
 	std::vector<int> nan_indices;
 	pcl_conversions::toPCL(msg,cloud_);
 	pcl::fromPCLPointCloud2(cloud_,curr_pc_);
 	pcl::removeNaNFromPointCloud(curr_pc_,curr_pc_,nan_indices);
-	curr_pc_ = this->filterCloud();
+	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_ptr (new pcl::PointCloud<pcl::PointXYZ>);
+	*cloud_ptr = curr_pc_;
+	this->filterCloud(cloud_ptr);
 	cloud_seq_loaded.push_back(curr_pc_);
 	if(cloud_seq_loaded.size()>2){
 		cloud_seq_loaded.pop_front();
@@ -51,6 +53,59 @@ void PointCloudProcessor::pclCallbk(sensor_msgs::PointCloud2 msg){
 	}*/
 }
 
+
+void PointCloudProcessor::filterCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in){
+	std::cout << "Filtering point cloud" << std::endl;
+	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_0_ptr (new pcl::PointCloud<pcl::PointXYZ>);
+	cloud_0_ptr = cloud_in;
+	
+	
+	pcl::PointCloud<pcl::PointXYZ>::Ptr final (new pcl::PointCloud<pcl::PointXYZ>);
+	
+  	pcl::SampleConsensusModelPlane<pcl::PointXYZ>::Ptr model_p (new pcl::SampleConsensusModelPlane<pcl::PointXYZ> (cloud_0_ptr));
+  
+
+  	std::vector<int> inliers;
+	//pcl::PointIndices::Ptr inliers (new pcl::PointIndices ());	
+    pcl::RandomSampleConsensus<pcl::PointXYZ> ransac (model_p);
+    ransac.setDistanceThreshold (.01);
+    ransac.computeModel();
+    ransac.getInliers(inliers);
+  	pcl::copyPointCloud<pcl::PointXYZ>(*cloud_0_ptr, inliers, *final);
+  	
+  	pcl::PointCloud<pcl::PointXYZ>::Ptr ground_hull (new pcl::PointCloud<pcl::PointXYZ>);
+  	pcl::ConvexHull<pcl::PointXYZ> chull;
+	chull.setInputCloud(final);     
+	chull.setDimension(2);
+    chull.reconstruct(*ground_hull);
+
+    pcl::ExtractPolygonalPrismData<pcl::PointXYZ> prism;
+    pcl::PointIndices::Ptr cloud_indices (new pcl::PointIndices);
+	prism.setInputCloud (cloud_0_ptr);
+	prism.setInputPlanarHull (ground_hull);
+	prism.setHeightLimits (0.05, 5.0);
+	prism.segment (*cloud_indices);
+
+	pcl::ExtractIndices<pcl::PointXYZ> eifilter (true);
+	eifilter.setInputCloud (cloud_0_ptr);
+	eifilter.setIndices (cloud_indices);
+	eifilter.filterDirectly (cloud_0_ptr);
+
+	pcl::StatisticalOutlierRemoval<pcl::PointXYZ> dy_sor;
+	dy_sor.setInputCloud (cloud_0_ptr);
+	dy_sor.setMeanK (20);
+	dy_sor.setStddevMulThresh (0.5);
+	dy_sor.filter (*cloud_0_ptr);
+
+	pcl::PassThrough<pcl::PointXYZ> pass_1;
+	pass_1.setInputCloud (cloud_0_ptr);
+	pass_1.setFilterFieldName ("z");
+	pass_1.setFilterLimits (0.0, 3.0);
+	pass_1.filter (*cloud_0_ptr);
+
+}
+
+/*
 // Filter processor 	
 pcl::PointCloud<pcl::PointXYZ> PointCloudProcessor::filterCloud(){
 	// parameter values are still yet to be tested for best results
@@ -61,13 +116,13 @@ pcl::PointCloud<pcl::PointXYZ> PointCloudProcessor::filterCloud(){
 	vxl_.setLeafSize(0.05,0.05,0.05);
 	vxl_.filter (*curr_pc_ptr_);
 
-	/*
+	
 	pcl::PassThrough<pcl::PointXYZ> pass_;
 	pass_.setInputCloud (curr_pc_ptr_);
 	pass_.setFilterFieldName ("z");
 	pass_.setFilterLimits (0.0, 3.0);
 	pass_.filter (*curr_pc_ptr_);
-	*/
+	
 	pcl::ModelCoefficients ground_coefficients;
 	pcl::PointIndices ground_indices;
 	pcl::SACSegmentation<pcl::PointXYZ> ground_finder;
@@ -128,15 +183,15 @@ pcl::PointCloud<pcl::PointXYZ> PointCloudProcessor::filterCloud(){
   	pub_ = nh_.advertise<pcl::PointCloud<pcl::PointXYZ> >("ExtractedPoints",2);
   	pub_.publish(object_points);
   	return object_points;
-	/*
+	
 	pcl::StatisticalOutlierRemoval<pcl::PointXYZ> sor_;
 	sor_.setInputCloud (curr_pc_ptr_);
 	sor_.setMeanK (20);
 	sor_.setStddevMulThresh (1.0);
 	sor_.filter (*curr_pc_ptr_);
-	*/
 	
-	}
+	
+	}*/
 /* USing gicp */
 /*
 Eigen::Matrix4f PointCloudProcessor::calcICP(){
@@ -155,10 +210,11 @@ Eigen::Matrix4f PointCloudProcessor::calcICP(){
 	}
 */
 
-/*
+
 // USing ICP from PCL 
 
 Eigen::Matrix4f PointCloudProcessor::calcICP(){
+	std::cout<<"Calculating ICP and fetching transformation"<< std::endl;
 	bool flag = true;
 
 	pcl::PointCloud<pcl::PointXYZ>::Ptr first_pc (new pcl::PointCloud<pcl::PointXYZ>);
@@ -167,21 +223,23 @@ Eigen::Matrix4f PointCloudProcessor::calcICP(){
 	*second_pc = cloud_seq_loaded[1];
 	
 	pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
-	pcl::Registration<pcl::PointXYZ,pcl::PointXYZ,float tmp>::TransformationEstimationPointToPlaneLLS < pcl::PointXYZ,pcl::PointXYZ>::Ptr trans_lls (new pcl::Registration<pcl::PointXYZ,pcl::PointXYZ,float tmp>::TransformationEstimationPointToPlaneLLS<pcl::PointXYZ, pcl::PointXYZ>);
+	//pcl::Registration<pcl::PointXYZ,pcl::PointXYZ,float tmp>::TransformationEstimationPointToPlaneLLS < pcl::PointXYZ,pcl::PointXYZ>::Ptr trans_lls (new pcl::Registration<pcl::PointXYZ,pcl::PointXYZ,float tmp>::TransformationEstimationPointToPlaneLLS<pcl::PointXYZ, pcl::PointXYZ>);
 	icp.setInputSource(first_pc);
 	icp.setInputTarget(second_pc);
-	icp.setTransformationEstimation (trans_lls);
-	//pcl::PointCloud<pcl::PointXYZ> Final;
-	//icp.align(Final);
+	//icp.setTransformationEstimation (trans_lls);
+	icp.setMaximumIterations (2);
+	icp.setRANSACIterations(5);
+  	//icp.setTransformationEpsilon (1e-8);
+  	//icp.setMaxCorrespondenceDistance (0.5);
+	pcl::PointCloud<pcl::PointXYZ> Final;
+	icp.align(Final);
 	tr_mat_ = icp.getFinalTransformation();
-	icp.setMaximumIterations (5);
-  	icp.setTransformationEpsilon (1e-8);
-  	icp.setMaxCorrespondenceDistance (0.5);
-
+	std::cout << "has converged:" << icp.hasConverged() << " score: " << icp.getFitnessScore() << std::endl;
+	
 
 	return tr_mat_;
 	}
-*/
+/*
 void PointCloudProcessor::calcICP(){
 	pcl::PointCloud<pcl::PointXYZ>::Ptr src_pc (new pcl::PointCloud<pcl::PointXYZ>);
 	pcl::PointCloud<pcl::PointXYZ>::Ptr tgt_pc (new pcl::PointCloud<pcl::PointXYZ>);
