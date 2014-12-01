@@ -52,12 +52,12 @@
 #include <pcl/segmentation/extract_clusters.h>
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/segmentation/extract_polygonal_prism_data.h>
-
+#include <pcl/features/fpfh.h>
 #include <pcl/sample_consensus/method_types.h>
 #include <pcl/sample_consensus/model_types.h>
 #include <Eigen/Dense>
 #include <deque>
-
+#include <pcl/features/normal_3d.h>
 #include <pcl/visualization/pcl_visualizer.h>
 class PointCloudProcessor{
 	
@@ -106,7 +106,8 @@ class PointCloudProcessor{
 		//void fetchCloud();
 		void filterCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in);
 		//Calculate Iterative closest point matching between the 2 point clouds
-		Eigen::Matrix4f calcICP();		
+		Eigen::Matrix4f calcICP();
+		void extractFeatures(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in);		
 	};
 	
 #endif	
