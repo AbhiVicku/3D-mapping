@@ -22,26 +22,32 @@
  * 
  */
 #include "odomProcessor.h"
-// subscriber
-void OdomProcess::subr(){
-	uint32_t queue_size = 1;
-	sub_ = nh_.subscribe<nav_msgs::Odometry>("/odom",queue_size,&OdomProcess::callbk,this);
-	}	
 
 // callback function
 void OdomProcess::callbk(nav_msgs::Odometry odomData){
+	//std::cout << odomData << std::endl;
+	std::cout<< "-->Updating odometry value" <<std::endl;
 	tf::Quaternion q(odomData.pose.pose.orientation.x, odomData.pose.pose.orientation.y, odomData.pose.pose.orientation.z, odomData.pose.pose.orientation.w);
 	tf::Matrix3x3 m(q);
 	pose_x = odomData.pose.pose.position.x;
 	pose_y = odomData.pose.pose.position.y;
 	m.getRPY(roll, pitch, yaw);
+	//std::cout << pose_x << std::endl;
 	}
 
+// subscriber
+void OdomProcess::subr(){
+	std::cout<< "-->Subscribing to Odometry" <<std::endl;
+	uint32_t queue_size = 1;
+	sub_ = nh_.subscribe<nav_msgs::Odometry>("/pose",queue_size,&OdomProcess::callbk,this);
+	}	
 
+
+/*
 int main(int argc, char **argv)
 {	ros::init(argc, argv, "PointCloudrocessor");
 	OdomProcess op;
 	op.subr();
 	return 0;
-}
+}*/
 
