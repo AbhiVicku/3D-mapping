@@ -24,17 +24,12 @@
 
 #include "pointCloudProcessor.h"
 // constructor	
-void PointCloudProcessor::subr(){
-	std::cout<< "2" << std::endl;
-	uint32_t queue_size = 1;
-	sub_ = nh_.subscribe<sensor_msgs::PointCloud2>("/camera/depth/points",queue_size,&PointCloudProcessor::pclCallbk, this);
-	
-	}	
+
 
 // Callback function for sensor_msg pointcloud	
 void PointCloudProcessor::pclCallbk(sensor_msgs::PointCloud2 msg){
 	//std::cout<< "subscribing to pcl" <<std::endl;
-	std::cout<< "Starting point cloud Callback" <<std::endl;
+	std::cout<< "-->Starting point cloud Callback" <<std::endl;
 	std::vector<int> nan_indices;
 	pcl_conversions::toPCL(msg,cloud_);
 	pcl::fromPCLPointCloud2(cloud_,curr_pc_);
@@ -42,6 +37,7 @@ void PointCloudProcessor::pclCallbk(sensor_msgs::PointCloud2 msg){
 	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_ptr (new pcl::PointCloud<pcl::PointXYZ>);
 	*cloud_ptr = curr_pc_;
 	this->filterCloud(cloud_ptr);
+	this->extractFeatures(cloud_ptr);
 	cloud_seq_loaded.push_back(curr_pc_);
 	if(cloud_seq_loaded.size()>2){
 		cloud_seq_loaded.pop_front();
@@ -55,7 +51,7 @@ void PointCloudProcessor::pclCallbk(sensor_msgs::PointCloud2 msg){
 
 
 void PointCloudProcessor::filterCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in){
-	std::cout << "Filtering point cloud" << std::endl;
+	std::cout << "-->Filtering point cloud" << std::endl;
 	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_0_ptr (new pcl::PointCloud<pcl::PointXYZ>);
 	cloud_0_ptr = cloud_in;
 	
@@ -105,116 +101,11 @@ void PointCloudProcessor::filterCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_
 
 }
 
-/*
-// Filter processor 	
-pcl::PointCloud<pcl::PointXYZ> PointCloudProcessor::filterCloud(){
-	// parameter values are still yet to be tested for best results
-	pcl::PointCloud<pcl::PointXYZ>::Ptr curr_pc_ptr_ (new pcl::PointCloud<pcl::PointXYZ>);
-	*curr_pc_ptr_= curr_pc_;
-	pcl::VoxelGrid<pcl::PointXYZ> vxl_;
-	vxl_.setInputCloud (curr_pc_ptr_);
-	vxl_.setLeafSize(0.05,0.05,0.05);
-	vxl_.filter (*curr_pc_ptr_);
-
-	
-	pcl::PassThrough<pcl::PointXYZ> pass_;
-	pass_.setInputCloud (curr_pc_ptr_);
-	pass_.setFilterFieldName ("z");
-	pass_.setFilterLimits (0.0, 3.0);
-	pass_.filter (*curr_pc_ptr_);
-	
-	pcl::ModelCoefficients ground_coefficients;
-	pcl::PointIndices ground_indices;
-	pcl::SACSegmentation<pcl::PointXYZ> ground_finder;
-  	ground_finder.setOptimizeCoefficients(true);
-  	ground_finder.setModelType(pcl::SACMODEL_PLANE);
-  	ground_finder.setMethodType(pcl::SAC_RANSAC);
-  	ground_finder.setDistanceThreshold(0.015);
-  	ground_finder.setInputCloud(curr_pc_ptr_);
-	ground_finder.segment(ground_indices, ground_coefficients);
-
-
-  	// Step 3a. Extract the ground plane inliers
-  	pcl::PointCloud<pcl::PointXYZ> ground_points;
-  	pcl::ExtractIndices<pcl::PointXYZ> extractor;
-  	extractor.setInputCloud(curr_pc_ptr_);
-  	extractor.setIndices(boost::make_shared<pcl::PointIndices>(ground_indices));
-  	extractor.filter(ground_points);
-
-  	// Step 3b. Extract the ground plane outliers
- 	pcl::PointCloud<pcl::PointXYZ> object_points;
-  	pcl::ExtractIndices<pcl::PointXYZ> outlier_extractor;
-  	outlier_extractor.setInputCloud(curr_pc_ptr_);
-  	outlier_extractor.setIndices(boost::make_shared<pcl::PointIndices>(ground_indices));
-  	outlier_extractor.setNegative(true);
-  	outlier_extractor.filter(object_points);
-
-
-	 // Step 3c. Project the ground inliers
-
-	pcl::PointCloud<pcl::PointXYZ> cloud_projected;
-  	pcl::ProjectInliers<pcl::PointXYZ> proj;
- 	proj.setModelType(pcl::SACMODEL_PLANE);
-  	proj.setInputCloud(boost::make_shared<pcl::PointCloud<pcl::PointXYZ> >(ground_points));
-  	proj.setModelCoefficients(boost::make_shared<pcl::ModelCoefficients>(ground_coefficients));
-  	proj.filter(cloud_projected);
-
-  	// Step 3d. Create a Convex Hull representation of the projected inliers
-  	pcl::PointCloud<pcl::PointXYZ> ground_hull;
-  	pcl::ConvexHull<pcl::PointXYZ> chull;
-  	chull.setInputCloud(boost::make_shared<pcl::PointCloud<pcl::PointXYZ> >(cloud_projected));
-  	chull.reconstruct(ground_hull);
-
-  	ROS_INFO ("Convex hull has: %d data points.", (int) ground_hull.points.size ());
-
-  
-  	// Step 3e. Extract only those outliers that lie above the ground plane's convex hull
-  	pcl::PointIndices object_indices;
-  	pcl::ExtractPolygonalPrismData<pcl::PointXYZ> hull_limiter;
-  	hull_limiter.setInputCloud(boost::make_shared<pcl::PointCloud<pcl::PointXYZ> >(object_points));
-  	hull_limiter.setInputPlanarHull(boost::make_shared<pcl::PointCloud<pcl::PointXYZ> >(ground_hull));
-  	hull_limiter.setHeightLimits(0, 0.6);
-  	hull_limiter.segment(object_indices);
-
-  	pcl::ExtractIndices<pcl::PointXYZ> object_extractor;
-  	object_extractor.setInputCloud(boost::make_shared<pcl::PointCloud<pcl::PointXYZ> >(object_points));
-  	object_extractor.setIndices(boost::make_shared<pcl::PointIndices>(object_indices));
-  	object_extractor.filter(object_points);
-  	pub_ = nh_.advertise<pcl::PointCloud<pcl::PointXYZ> >("ExtractedPoints",2);
-  	pub_.publish(object_points);
-  	return object_points;
-	
-	pcl::StatisticalOutlierRemoval<pcl::PointXYZ> sor_;
-	sor_.setInputCloud (curr_pc_ptr_);
-	sor_.setMeanK (20);
-	sor_.setStddevMulThresh (1.0);
-	sor_.filter (*curr_pc_ptr_);
-	
-	
-	}*/
-/* USing gicp */
-/*
-Eigen::Matrix4f PointCloudProcessor::calcICP(){
-	pcl::PointCloud<pcl::PointXYZ>::Ptr first_pc (new pcl::PointCloud<pcl::PointXYZ>);
-	pcl::PointCloud<pcl::PointXYZ>::Ptr second_pc (new pcl::PointCloud<pcl::PointXYZ>);
-	*first_pc = cloud_seq_loaded[0];
-	*second_pc = cloud_seq_loaded[1];
-	Eigen::Matrix4f tr_mat;
-	pcl::GeneralizedIterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> gicp;
-	gicp.setInputSource(first_pc);
-	gicp.setInputTarget(second_pc);
-	pcl::PointCloud<pcl::PointXYZ> Final;
-	gicp.align(Final);
-	tr_mat = gicp.getFinalTransformation();
-	return tr_mat;
-	}
-*/
-
 
 // USing ICP from PCL 
 
 Eigen::Matrix4f PointCloudProcessor::calcICP(){
-	std::cout<<"Calculating ICP and fetching transformation"<< std::endl;
+	std::cout<<"-->Calculating ICP and fetching transformation"<< std::endl;
 	bool flag = true;
 
 	pcl::PointCloud<pcl::PointXYZ>::Ptr first_pc (new pcl::PointCloud<pcl::PointXYZ>);
@@ -239,72 +130,41 @@ Eigen::Matrix4f PointCloudProcessor::calcICP(){
 
 	return tr_mat_;
 	}
-/*
-void PointCloudProcessor::calcICP(){
-	pcl::PointCloud<pcl::PointXYZ>::Ptr src_pc (new pcl::PointCloud<pcl::PointXYZ>);
-	pcl::PointCloud<pcl::PointXYZ>::Ptr tgt_pc (new pcl::PointCloud<pcl::PointXYZ>);
-	*src_pc = cloud_seq_loaded[0];
-	*tgt_pc = cloud_seq_loaded[1];
-	pcl::PointCloud<pcl::PointNormal>::Ptr points_with_normals_src (new pcl::PointCloud<pcl::PointNormal>);
-	pcl::PointCloud<pcl::PointNormal>::Ptr points_with_normals_tgt (new pcl::PointCloud<pcl::PointNormal>);
+void PointCloudProcessor::subr(){
+	std::cout<< "-->Subscribing to Point cloud" << std::endl;
+	uint32_t queue_size = 1;
+	sub_ = nh_.subscribe<sensor_msgs::PointCloud2>("/camera/depth/points",queue_size,&PointCloudProcessor::pclCallbk, this);
 	
-	pcl::NormalEstimation<pcl::PointXYZ,pcl::PointNormal> norm_est;
+	}
+
+void PointCloudProcessor::extractFeatures(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in){
+	//TODO: extract feature points
+	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_ptr (new pcl::PointCloud<pcl::PointXYZ>);
+	cloud_ptr = cloud_in;
+	pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> ne;
+	ne.setInputCloud (cloud_ptr);
 	pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ> ());
-  	norm_est.setSearchMethod (tree);
-  	norm_est.setKSearch (30);
-  	norm_est.setInputCloud (src_pc);
-  	norm_est.compute (*points_with_normals_src);
-  	pcl::copyPointCloud (*src_pc, *points_with_normals_src);
+  	ne.setSearchMethod (tree);
 
-  	norm_est.setInputCloud (tgt_pc);
-  	norm_est.compute (*points_with_normals_tgt);
-  	pcl::copyPointCloud (*tgt_pc, *points_with_normals_tgt);
-  	 MyPointRepresentation point_representation;
-  	// ... and weight the 'curvature' dimension so that it is balanced against x, y, and z
-  	float alpha[4] = {1.0, 1.0, 1.0, 1.0};
-  	point_representation.setRescaleValues (alpha);
-  	// Align
-  	pcl::IterativeClosestPointNonLinear<pcl::PointNormal,pcl::PointNormal> reg;
-  	reg.setTransformationEpsilon (1e-6);
-  	// Set the maximum distance between two correspondences (src<->tgt) to 10cm
-  	// Note: adjust this based on the size of your datasets
-  	reg.setMaxCorrespondenceDistance (0.5);  
-  	// Set the point representation
-  	reg.setPointRepresentation (boost::make_shared<const MyPointRepresentation> (point_representation));
-  	reg.setInputSource (points_with_normals_src);
-  	reg.setInputTarget (points_with_normals_tgt);
-  	Eigen::Matrix4f Ti = Eigen::Matrix4f::Identity (), prev, targetToSource;
-  	pcl::PointCloud<pcl::PointNormal>::Ptr reg_result = points_with_normals_src;
-  	reg.setMaximumIterations (2);
-	for (int i = 0; i < 10; ++i)
-  	{
-    	PCL_INFO ("Iteration Nr. %d.\n", i);
-    	// save cloud for visualization purpose
-    	points_with_normals_src = reg_result;
-    	// Estimate
-    	reg.setInputSource (points_with_normals_src);
-    	reg.align (*reg_result);
-		//accumulate transformation between each Iteration
-	    Ti = reg.getFinalTransformation () * Ti;
-
-		//if the difference between this transformation and the previous one
-		//is smaller than the threshold, refine the process by reducing
-		//the maximal correspondence distance
-    	if (fabs ((reg.getLastIncrementalTransformation () - prev).sum ()) < reg.getTransformationEpsilon ())
-      		reg.setMaxCorrespondenceDistance (reg.getMaxCorrespondenceDistance () - 0.001);
-    
-    	prev = reg.getLastIncrementalTransformation ();
-
-    // visualize current state
-    //showCloudsRight(points_with_normals_tgt, points_with_normals_src);
-  	}
-
-  	std::cout<< Ti<< std::endl;
-
-
-}
-
-
+  	// Output datasets
+  	pcl::PointCloud<pcl::Normal>::Ptr cloud_normals (new pcl::PointCloud<pcl::Normal>);
+  	// Use all neighbors in a sphere of radius 3cm
+  	ne.setRadiusSearch (0.03);
+  	// Compute the features
+  	ne.compute (*cloud_normals);
+	pcl::FPFHEstimation<pcl::PointXYZ, pcl::Normal, pcl::FPFHSignature33> fpfh;
+	fpfh.setInputCloud (cloud_ptr);
+  	fpfh.setInputNormals (cloud_normals);
+  	fpfh.setSearchMethod (tree);
+  	// Output datasets
+  	pcl::PointCloud<pcl::FPFHSignature33>::Ptr fpfhs (new pcl::PointCloud<pcl::FPFHSignature33> ());
+  	// Use all neighbors in a sphere of radius 5cm
+  	// IMPORTANT: the radius used here has to be larger than the radius used to estimate the surface normals!!!
+  	fpfh.setRadiusSearch (0.05);
+  	// Compute the features
+  	fpfh.compute (*fpfhs);
+  	std::cout<<fpfhs->points.size()<<std::endl;	
+}	
 
 /*			
 int main(int argc, char **argv)
