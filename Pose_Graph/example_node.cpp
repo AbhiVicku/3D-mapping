@@ -12,6 +12,10 @@
 
 int main(int argc, char **argv)
 {
+	std::cout << "----------------------------------------------- "<<std::endl;
+	std::cout << "-------------This is a pose graph slam--------- "<<std::endl;
+	std::cout << "----------------------------------------------- "<<std::endl;
+	
 	std::ofstream myfile;
 	/* code */
 	myfile.open ("example.txt");
@@ -37,7 +41,7 @@ int main(int argc, char **argv)
 		odom_data.push_back(od_p.yaw);		
 		
 		if((pcl_p.cloud_seq_loaded.size()==1) && first){
-			std::cout<<"Initalizing pose graph"<< std::endl;
+			std::cout<<"-->Initalizing pose graph"<< std::endl;
 			std::vector<double> odom_init;
 			odom_init.push_back(od_p.pose_x);
 			odom_init.push_back(od_p.pose_y);
@@ -48,7 +52,7 @@ int main(int argc, char **argv)
 		}
 
 		if(pcl_p.cloud_seq_loaded.size()==2){
-				std::cout<<"count is :"<< count<< std::endl;
+				std::cout<<"Count is :"<< count<< std::endl;
 				
 				tr_mat = pcl_p.calcICP();
 				//std::cout << pcl_p.calcICP() <<std::endl;
@@ -60,7 +64,7 @@ int main(int argc, char **argv)
 		}
 		
 
-		//pg.display();
+		pg.display();
 		
 		ros::spinOnce();
 	}
@@ -85,14 +89,19 @@ int main(int argc, char **argv)
 	for(;pg.edgeIt_!=pg.edgeEnd_;++pg.edgeIt_)
 	{
 		//myfile<<*pg.vertexIt_<;
-		myfile<<"Edge weight ";
-		/*
-		for(size_t i =0;i<pg.gr_[*pg.edgeIt_].transformation.size();i++ ){
-			std::cout<< boost::multi_index::index[boost::source(*pg.edgeIt_,pg.gr_)]<<std::endl;
-			myfile<<*(pg.gr_[*pg.edgeIt_].transformation.data() +i);
-			myfile<< "  ";
+		myfile<<"Edge ";
+		Eigen::Matrix4f trfMat = pg.gr_[*pg.edgeIt_].transformation;
+		for(int i = 0;i<16;i++){
+			myfile<< *(trfMat.data()+i)<< " ";
+		} 
+		/* 
+		for(size_t i =0;i<=trfMat.rows();i++ ){
+			for (size_t j = 0; j<=trfMat.cols();j++){
+				myfile<< *(trfMat.data()+i+j)<< " ";;	
+			}
+			
 			}*/
-		myfile<<pg.gr_[*pg.edgeIt_].transformation;
+		//myfile<<pg.gr_[*pg.edgeIt_].transformation;
 		myfile<< "\n";
 		
 		}
