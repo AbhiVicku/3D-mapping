@@ -59,6 +59,7 @@
 #include <deque>
 #include <pcl/features/normal_3d.h>
 #include <pcl/visualization/pcl_visualizer.h>
+ #include <pcl/registration/transformation_estimation_2D.h>
 class PointCloudProcessor{
 	
 		
@@ -107,7 +108,8 @@ class PointCloudProcessor{
 		void filterCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in);
 		//Calculate Iterative closest point matching between the 2 point clouds
 		Eigen::Matrix4f calcICP();
-		void extractFeatures(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in);		
+		void extractFeatures(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in);
+		Eigen::Matrix4f estTrans();	
 	};
 	
 #endif	
