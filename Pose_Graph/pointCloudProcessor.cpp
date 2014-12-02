@@ -36,8 +36,9 @@ void PointCloudProcessor::pclCallbk(sensor_msgs::PointCloud2 msg){
 	pcl::removeNaNFromPointCloud(curr_pc_,curr_pc_,nan_indices);
 	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_ptr (new pcl::PointCloud<pcl::PointXYZ>);
 	*cloud_ptr = curr_pc_;
-	this->filterCloud(cloud_ptr);
-	this->extractFeatures(cloud_ptr);
+	//this->filterCloud(cloud_ptr);
+	//TODO:Add loop closure
+	//this->extractFeatures(cloud_ptr);
 	cloud_seq_loaded.push_back(curr_pc_);
 	if(cloud_seq_loaded.size()>2){
 		cloud_seq_loaded.pop_front();
@@ -165,6 +166,18 @@ void PointCloudProcessor::extractFeatures(pcl::PointCloud<pcl::PointXYZ>::Ptr cl
   	fpfh.compute (*fpfhs);
   	std::cout<<fpfhs->points.size()<<std::endl;	
 }	
+Eigen::Matrix4f PointCloudProcessor::estTrans(){
+	std::cout<< "--> estimating transform 2D \n";
+	pcl::registration::TransformationEstimation2D< pcl::PointXYZ, pcl::PointXYZ, float >  ddTr; 	
+	pcl::PointCloud<pcl::PointXYZ>::Ptr first_pc (new pcl::PointCloud<pcl::PointXYZ>);
+	pcl::PointCloud<pcl::PointXYZ>::Ptr second_pc (new pcl::PointCloud<pcl::PointXYZ>);
+	*first_pc = cloud_seq_loaded[0];
+	*second_pc = cloud_seq_loaded[1];
+	Eigen::Matrix4f result;
+	ddTr.estimateRigidTransformation(*first_pc,*second_pc,result);
+	std::cout<<result<<std::endl;
+	return result;
+}
 
 /*			
 int main(int argc, char **argv)
