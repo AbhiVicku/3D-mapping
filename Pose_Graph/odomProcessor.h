@@ -28,18 +28,24 @@
 #include <ros/ros.h>
 #include <nav_msgs/Odometry.h>
 #include <tf/transform_datatypes.h>
+
+// This is the classs to define odometry process required for pose graph SLAM 
 class OdomProcess{
 	/*
 	 * This the class to process odometry. 
 	 */ 
 	private:
+		// Ros node handles and subscriber initialization
 		ros::NodeHandle nh_;
 		ros::Subscriber sub_;
 
 	public:
+		// odometry roll, pitch and yaw
 		double roll, pitch, yaw;
 		double pose_x,pose_y;
+		// subscriber callback function
 		void callbk(nav_msgs::Odometry odomData);
+		// subcriber function for ros
 		void subr();	
 	};
 #endif
