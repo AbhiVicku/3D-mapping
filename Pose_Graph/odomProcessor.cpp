@@ -23,7 +23,7 @@
  */
 #include "odomProcessor.h"
 
-// callback function
+// This is the subcriber callback function that recieves nav msg odometry data and calculate yaw with x, y poses. Assuming only 2D motion.
 void OdomProcess::callbk(nav_msgs::Odometry odomData){
 	//std::cout << odomData << std::endl;
 	std::cout<< "-->Updating odometry value" <<std::endl;
@@ -35,7 +35,7 @@ void OdomProcess::callbk(nav_msgs::Odometry odomData){
 	//std::cout << pose_x << std::endl;
 	}
 
-// subscriber
+// This is the subcriber function.
 void OdomProcess::subr(){
 	std::cout<< "-->Subscribing to Odometry" <<std::endl;
 	uint32_t queue_size = 1;
@@ -44,6 +44,7 @@ void OdomProcess::subr(){
 
 
 /*
+// Test
 int main(int argc, char **argv)
 {	ros::init(argc, argv, "PointCloudrocessor");
 	OdomProcess op;
