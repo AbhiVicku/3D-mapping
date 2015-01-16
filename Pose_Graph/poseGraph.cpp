@@ -52,6 +52,7 @@ void PoseGraph::addEdgeToPrev(Eigen::Matrix4f tr_msg){
 	gr_[e1].transformation = tr_msg;
 	gr_[e1].src_ = gr_[*vertexEnd-2].key;
 	gr_[e1].src_ = gr_[*vertexEnd-1].key;
+	std::cout<<"previous vertices "<< gr_[*vertexEnd-2].key <<std::endl;  
 	
 	return;
 	}
