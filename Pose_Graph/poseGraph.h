@@ -11,7 +11,7 @@
 #include <boost/graph/graphviz.hpp>
 
 class PoseGraph{
-	private:
+	public:
 		struct pose_{
 			int key;
 			std::vector<double>  data;
@@ -19,6 +19,8 @@ class PoseGraph{
 		
 		// Custom edge properties as constraints
 		struct constraints_{
+			int src_;
+			int obs_;
 			Eigen::Matrix4f transformation;
 		};
 		
@@ -27,8 +29,10 @@ class PoseGraph{
 		typedef boost::graph_traits<Graph_>::vertex_descriptor Vertex_;
 		typedef boost::graph_traits<Graph_>::edge_descriptor Edge_;
 		Graph_ gr_;
+		Graph_::vertex_iterator vertexIt_,vertexEnd_;
+		Graph_::edge_iterator edgeIt_,edgeEnd_;
+		//boost::tie(vertexIt, vertexEnd) = boost::vertices(pg.gr_);
 		
-		public:
 		// Add vertex to the graph
 			void addVertex(int v,std::vector<double> odom_);
 		// Add edge in betwwen the last 2 vertices of the graph
