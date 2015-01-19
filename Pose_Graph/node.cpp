@@ -165,13 +165,16 @@ Eigen::Matrix4f Node::estTrans(pcl::PointCloud<pcl::PointXYZ> first,pcl::PointCl
 }
 	
 void Node::cloudCallbk(sensor_msgs::PointCloud2 msg){
+	cout<<"cloud call back"<<endl;
 	std::vector<int> nan_indices;
 	pcl_conversions::toPCL(msg,cloud_);
 	pcl::fromPCLPointCloud2(cloud_,curr_pc);
 	pcl::removeNaNFromPointCloud(curr_pc,curr_pc,nan_indices);
 	
 	}
+/* point cloud subscriber */
 void Node::cloudSub(){
+	cout<<"cld Subr"<<endl;
 	uint32_t queue_size = 1;
 	cloud = nh.subscribe<sensor_msgs::PointCloud2>("/camera/depth/points",queue_size,&Node::cloudCallbk, this);
 	}
@@ -220,43 +223,56 @@ Node::Node(){
 	int count = 1; // conter for key of the vertex
 	threshold_distance=0.5; // thesholding for the distance travelled
 	/* Subscribe to odometry */ 
+	cout<<"Subscribe to odometry"<<endl;
 	this->odomSub(); // data-> pose_x,pose_y,roll, pitch, yaw
 	/* Subscribe to point cloud */
+	cout<<"Subscribe to point cloud"<<endl;
 	this->cloudSub(); //data-> curr_pc
+	
 	
 	/* Initialize graph with first vertex as the starting point */
 	std::vector<double> curr_odom;
 	curr_odom.push_back(pose_x);
 	curr_odom.push_back(pose_y);
 	curr_odom.push_back(yaw);
+	cout<<"Initialize graph with first vertex as the starting point"<<endl;
 	this->initGraph(0,curr_odom); //data-> gr graph
 	
 	/* Save the first cloud */ 
 	prev_cld = curr_pc;
 	/* Whle the process is going on loop it */
+	cout<<"Whle the process is going on loop it"<<endl;
 	while(ros::ok()){
 		/*subscribe to odom */ 
+		cout<<"subscribe to odom"<<endl;
 		this->odomSub();
+		
 		/* Subscribe to point cloud */ 
+		cout<<"Subscribe to point cloud"<<endl;
 		this->cloudSub();
+		
 		/* Calculate distance */
 		float distance;
 		std::vector<double> now_odom;
-		curr_odom.push_back(pose_x);
-		curr_odom.push_back(pose_y);
-		curr_odom.push_back(yaw);
+		now_odom.push_back(pose_x);
+		now_odom.push_back(pose_y);
+		now_odom.push_back(yaw);
 		boost::tie(vertex_It,vertex_End) = boost::vertices(gr);
 		std::vector<double> prev_odom;
 		prev_odom = gr[*vertex_End].data;
+		cout<<"Calculate distance"<<endl;
 		distance = this->calculateDist(now_odom, prev_odom);
 		
 		/* if distance is greater than threshold */
 		if(distance >= threshold_distance){
 			/*  add vertex to graph  */
+			cout<<"add vertex to graph"<<endl;
 			this->addVertex(count,now_odom);
 			/* calculate transform */
+			cout<<"calculate transform"<<endl;
 			tr_mat =this->estTrans(curr_pc,prev_cld);
 			/* Add edge weights between current and previous */
+			cout<< "Add edge weights between current and previous"<<endl;
 			this->addEdge(tr_mat); 
 			prev_cld = curr_pc;
 			count++;
@@ -273,10 +289,10 @@ int main(int argc, char **argv)
 	/*
 	 * Initialize Ros components. Subscribe to point cloud , odometry.
 	 */ 
-	 
+	cout<<"Initializing ros node"<<endl;
 	ros::init(argc,argv,"graph_node");
 
-	Node graphNode = Node();	
+	Node graphNode;	
 	/* Write data to file */
 
 	
