@@ -42,12 +42,14 @@
 #include <Eigen/Dense>
 #include <deque>
 #include <fstream>
+#include <pcl/registration/gicp.h>
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/graph_utility.hpp>
 #include <boost/property_map/property_map.hpp>
 #include <boost/graph/graphviz.hpp>
-
+#include <math.h>
 using namespace std;
+#define PI 3.14159265
 
 class Node{
 	public:
@@ -77,6 +79,13 @@ class Node{
 			Eigen::Matrix4f transformation;
 			double score;
 		};
+		
+		struct odometry{
+			double pose_x;
+			double pose_y;
+			double yaw;
+		};
+		
 		//Graph type 
 		typedef boost::adjacency_list<boost::listS,boost::vecS, boost::undirectedS,pose_, constraints_> Graph;
 		typedef boost::graph_traits<Graph>::vertex_descriptor Vertex;
@@ -104,7 +113,7 @@ class Node{
 	
 		
 		/* calculate distance travelled */ 
-		float calculateDist(vector<double> curr_odom,vector<double> prev_odom);
+		double calculateDist(vector<double> curr_odom,vector<double> prev_odom);
 		
 		/* Add vertex to graph with given data */ 
 		void addVertex(int v,std::vector<double> odom);
@@ -142,7 +151,7 @@ pcl::PointCloud<pcl::PointXYZ> Node::randomSample(pcl::PointCloud<pcl::PointXYZ>
 	*in_cld_ptr = in_cld;
 	pcl::RandomSample<pcl::PointXYZ> sample(true);
 	sample.setInputCloud(in_cld_ptr);
-	sample.setSample(5000);  // 1000 pts
+	sample.setSample(1000);  // 1000 pts
 	std::vector<int> out_idx;
 	sample.filter(out_idx);
 	pcl::PointCloud<pcl::PointXYZ> out_cld;
@@ -156,15 +165,32 @@ Eigen::Matrix4f Node::estTrans(pcl::PointCloud<pcl::PointXYZ> first,pcl::PointCl
 		Solution: randomly sample same number of points and get transform for those
 			Estimating 2D transform between cloud points
 	*/
-	
-	pcl::registration::TransformationEstimation2D< pcl::PointXYZ, pcl::PointXYZ, float >  ddTr; 	
 	pcl::PointCloud<pcl::PointXYZ>::Ptr first_pc (new pcl::PointCloud<pcl::PointXYZ>);
 	pcl::PointCloud<pcl::PointXYZ>::Ptr second_pc (new pcl::PointCloud<pcl::PointXYZ>);
+	//pcl::PointCloud<pcl::PointXYZ> first_pc;
+	//pcl::PointCloud<pcl::PointXYZ> second_pc;
+	pcl::PointCloud<pcl::PointXYZ> final;
+	
 	*first_pc = this->randomSample(first);
 	*second_pc = this->randomSample(second);
-	 
-	Eigen::Matrix4f result;
-	ddTr.estimateRigidTransformation(*first_pc,*second_pc,result);
+	
+	pcl::GeneralizedIterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> gicp;
+	gicp.setMaximumIterations(10);
+    gicp.setRANSACIterations(5);
+	
+    gicp.setInputCloud(first_pc);
+    gicp.setInputTarget(second_pc);
+
+    Eigen::Matrix4f result;
+    
+    gicp.align(final);
+	result = gicp.getFinalTransformation();
+	cout << gicp.getFitnessScore() << endl;
+	cout << gicp.getFinalTransformation() << endl;
+	cout <<gicp.hasConverged()<<endl;
+	//pcl::registration::TransformationEstimation2D< pcl::PointXYZ, pcl::PointXYZ, float >  ddTr; 	 
+	
+	//ddTr.estimateRigidTransformation(*first_pc,*second_pc,result);
 	//std::cout<<result<<std::endl;
 	return result;
 }
@@ -187,8 +213,8 @@ void Node::cloudSub(){
 
 
 /* calculate distance travelled */ 
-float Node::calculateDist(vector<double> curr_odom,vector<double> prev_odom){
-	float dist;	
+double Node::calculateDist(vector<double> curr_odom,vector<double> prev_odom){
+	double dist;	
 	dist = pow((curr_odom[0] - prev_odom[0]),2) + pow((curr_odom[1]-prev_odom[1]),2);
 	dist = sqrt(dist);
 	return dist;
@@ -225,18 +251,28 @@ void Node::initGraph(int v,std::vector<double> odom){
 	}
 		
 /* main node process */ 
-Node::Node(){
+Node::Node()
+{
 	pcl::PointCloud<pcl::PointXYZ> prev_cld; // one step buffer for clouds comparision
-	int count = 1; // conter for key of the vertex
-	threshold_distance=0.5; // thesholding for the distance travelled
+	int count = 1; // counter for key of the vertex
+	threshold_distance=0.4; // thesholding for the distance travelled
+	
 	
 	/* Subscribe to odometry */ 
-	cout<<"Subscribe to odometry"<<endl;
-	this->odomSub(); // data-> pose_x,pose_y,roll, pitch, yaw
+	while(ros::ok())
+	{
+		cout<<"Subscribe to odometry"<<endl;
+		this->odomSub(); // data-> pose_x,pose_y,roll, pitch, yaw
 	
-	/* Subscribe to point cloud */
-	cout<<"Subscribe to point cloud"<<endl;
-	this->cloudSub(); //data-> curr_pc
+		/* Subscribe to point cloud */
+		cout<<"Subscribe to point cloud"<<endl;
+		this->cloudSub(); //data-> curr_pc
+		
+		if(curr_pc.size() > 0)
+			break;
+			
+		ros::spinOnce();
+	}
 	//cloud_seq_loaded.push_back(curr_pc);
 	
 	/* Initialize graph with first vertex as the starting point */
@@ -244,48 +280,52 @@ Node::Node(){
 	curr_odom.push_back(pose_x);
 	curr_odom.push_back(pose_y);
 	curr_odom.push_back(yaw);
-	cout<<"Initialize graph with first vertex as the starting point"<<endl;
+	//cout<<"Initialize graph with first vertex as the starting point"<<endl;
 	this->initGraph(0,curr_odom); //data-> gr graph
 	
 	/* Save the first cloud */ 
 	prev_cld = curr_pc;
 	/* Whle the process is going on loop it */
-	cout<<"Whle the process is going on loop it"<<endl;
-	while(ros::ok()){
+	//cout<<"Whle the process is going on loop it"<<endl;
+	
+	while(ros::ok())
+	{
 		/*subscribe to odom */ 
-		cout<<"subscribe to odom"<<endl;
+		//cout<<"subscribe to odom"<<endl;
 		this->odomSub();
 		
 		/* Subscribe to point cloud */ 
-		cout<<"Subscribe to point cloud"<<endl;
+		//cout<<"Subscribe to point cloud"<<endl;
 		this->cloudSub();
 		
 		/* Calculate distance */
-		cout<<"distance"<<endl;
-		float distance;
+		//cout<<"distance"<<endl;
+		double distance;
 		std::vector<double> now_odom;
 		now_odom.push_back(pose_x);
 		now_odom.push_back(pose_y);
 		now_odom.push_back(yaw);
-		cout<<"calculating prev odom value"<<endl;
+		
+		//cout<<"calculating prev odom value"<<endl;
 		boost::tie(vertex_It,vertex_End) = boost::vertices(gr);
 		std::vector<double> prev_odom;
 		prev_odom = gr[*vertex_End-1].data;
-		cout<<"Calculate distance"<<endl;
+		//cout<<"Calculate distance"<<endl;
 		distance = this->calculateDist(now_odom, prev_odom);
-		cout<<distance<<endl;
-		
+		//cout<<distance<<endl;
 		
 		/* if distance is greater than threshold */
-		if(distance >= threshold_distance){
+		if(distance >= threshold_distance && curr_pc.size() > 0)
+		{
 			/*  add vertex to graph  */
-			cout<<"-->add vertex to graph"<<endl;
+			//cout<<"-->add vertex to graph"<<endl;
 			this->addVertex(count,now_odom);
 			/* calculate transform */
-			cout<<"-->calculate transform"<<endl;
+			//cout<<"-->calculate transform"<<endl;
+			cout << curr_pc.size() << " " << prev_cld.size() << endl;
 			tr_mat =this->estTrans(curr_pc,prev_cld);
 			/* Add edge weights between current and previous */
-			cout<< "-->Add edge weights between current and previous"<<endl;
+			//cout<< "-->Add edge weights between current and previous"<<endl;
 			
 			
 			/* evaluate the validity of edge transforms */
@@ -301,13 +341,13 @@ Node::Node(){
 			*/
 			
 			
-			this->addEdge(tr_mat,score);
+			this->addEdge(tr_mat,0.000);
 			prev_cld = curr_pc;
 			count++;
 		}
 		
 		ros::spinOnce();
-		}
+	}
 		
 		/* write data onto a file for later optimization */
 		std::ofstream myfile,file;
@@ -316,7 +356,7 @@ Node::Node(){
 		boost::tie(vertex_It, vertex_End) = boost::vertices(gr);
 		for(;vertex_It!=vertex_End;++vertex_It)
 		{
-			myfile<<"Vertex ";
+			myfile<<"VERTEX2 ";
 			myfile<<gr[*vertex_It].key;
 			myfile<<" ";
 			for (int i =0;i< 3;i++){
@@ -333,10 +373,15 @@ Node::Node(){
 		boost::tie(edge_It,edge_End) = boost::edges(gr);
 		for(;edge_It!=edge_End;++edge_It)
 		{
+			double result;	
 			//myfile<<*pg.vertexIt_<;
-			myfile<<"Edge ";
+			myfile<<"EDGE2 ";
 			myfile<<gr[*edge_It].src<<" "<<gr[*edge_It].obs<<" ";
 			Eigen::Matrix4f trfMat = gr[*edge_It].transformation;
+			result = atan(*(trfMat.data()+2) / *(trfMat.data()));
+			//According to the given file format:  forward, sideward, rotate, inf_ff, inf_fs, inf_ss, inf_rr,inf_fr,inf_sr
+			myfile<<*(trfMat.data()+12)<<" "<<*(trfMat.data()+13)<<" "<<result<<" "<<"1 0 1 1 0 0";
+			/*
 			for(int i = 0;i<16;i++){
 				myfile<< *(trfMat.data()+i)<< " ";
 			} 
@@ -377,7 +422,7 @@ Node::Node(){
 			file<< "\n";
 		
 		}*/
-		file.close();
+		//file.close();
 	
 		//boost::write_graphviz(cout, gr);
 	}
