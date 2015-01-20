@@ -38,8 +38,10 @@
 #include <pcl/registration/transforms.h> 
 #include <pcl/registration/transformation_estimation_2D.h>
 #include <pcl/registration/icp.h>
+#include <pcl/registration/transformation_validation_euclidean.h>
 #include <Eigen/Dense>
 #include <deque>
+#include <fstream>
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/graph_utility.hpp>
 #include <boost/property_map/property_map.hpp>
@@ -60,6 +62,8 @@ class Node{
 		pcl::PointCloud<pcl::PointXYZ> curr_pc;
 		Eigen::Matrix4f tr_mat;
 		Eigen::Matrix4f prev_tr_mat;
+		
+		std::deque< pcl::PointCloud<pcl::PointXYZ> > cloud_seq_loaded;
 		// properties for vertex of the graph 
 		struct pose_{
 			int key;
@@ -71,6 +75,7 @@ class Node{
 			int src;
 			int obs;
 			Eigen::Matrix4f transformation;
+			double score;
 		};
 		//Graph type 
 		typedef boost::adjacency_list<boost::listS,boost::vecS, boost::undirectedS,pose_, constraints_> Graph;
@@ -105,7 +110,7 @@ class Node{
 		void addVertex(int v,std::vector<double> odom);
 		
 		/* Add edge to the last added vertex */ 
-		void addEdge(Eigen::Matrix4f tr_msg);
+		void addEdge(Eigen::Matrix4f tr_msg,double tr_score);
 		
 		/* Initialize graph */ 
 		void initGraph(int v,std::vector<double> odom);
@@ -177,6 +182,7 @@ void Node::cloudSub(){
 	cout<<"cld Subr"<<endl;
 	uint32_t queue_size = 1;
 	cloud = nh.subscribe<sensor_msgs::PointCloud2>("/camera/depth/points",queue_size,&Node::cloudCallbk, this);
+	cout<<"data fetched"<<endl;
 	}
 
 
@@ -198,15 +204,16 @@ void Node::addVertex(int v,std::vector<double> odom){
 	}
 		
 /* Add edge to the last added vertex */ 
-void Node::addEdge(Eigen::Matrix4f tr_msg){
+void Node::addEdge(Eigen::Matrix4f tr_msg,double tr_score){
 	//Graph::vertex_iterator vertex_It,vertex_End;
 	boost::tie(vertex_It, vertex_End) = boost::vertices(gr);
 	//std::cout<< "-->Vertex End is :"<<*vertexEnd<<std::endl;
 	Edge e1; 
-	e1 = (boost::add_edge(*(vertex_End-1),(*vertex_End),gr)).first;
+	e1 = (boost::add_edge(*(vertex_End-2),(*vertex_End-1),gr)).first;
 	gr[e1].transformation = tr_msg;
-	gr[e1].src = gr[*vertex_End-1].key;
-	gr[e1].obs = gr[*vertex_End].key;
+	gr[e1].src = gr[*vertex_End-2].key;
+	gr[e1].obs = gr[*vertex_End-1].key;
+	gr[e1].score = tr_score;
 	}
 		
 /* Initialize graph */ 
@@ -222,13 +229,15 @@ Node::Node(){
 	pcl::PointCloud<pcl::PointXYZ> prev_cld; // one step buffer for clouds comparision
 	int count = 1; // conter for key of the vertex
 	threshold_distance=0.5; // thesholding for the distance travelled
+	
 	/* Subscribe to odometry */ 
 	cout<<"Subscribe to odometry"<<endl;
 	this->odomSub(); // data-> pose_x,pose_y,roll, pitch, yaw
+	
 	/* Subscribe to point cloud */
 	cout<<"Subscribe to point cloud"<<endl;
 	this->cloudSub(); //data-> curr_pc
-	
+	//cloud_seq_loaded.push_back(curr_pc);
 	
 	/* Initialize graph with first vertex as the starting point */
 	std::vector<double> curr_odom;
@@ -252,35 +261,125 @@ Node::Node(){
 		this->cloudSub();
 		
 		/* Calculate distance */
+		cout<<"distance"<<endl;
 		float distance;
 		std::vector<double> now_odom;
 		now_odom.push_back(pose_x);
 		now_odom.push_back(pose_y);
 		now_odom.push_back(yaw);
+		cout<<"calculating prev odom value"<<endl;
 		boost::tie(vertex_It,vertex_End) = boost::vertices(gr);
 		std::vector<double> prev_odom;
-		prev_odom = gr[*vertex_End].data;
+		prev_odom = gr[*vertex_End-1].data;
 		cout<<"Calculate distance"<<endl;
 		distance = this->calculateDist(now_odom, prev_odom);
+		cout<<distance<<endl;
+		
 		
 		/* if distance is greater than threshold */
 		if(distance >= threshold_distance){
 			/*  add vertex to graph  */
-			cout<<"add vertex to graph"<<endl;
+			cout<<"-->add vertex to graph"<<endl;
 			this->addVertex(count,now_odom);
 			/* calculate transform */
-			cout<<"calculate transform"<<endl;
+			cout<<"-->calculate transform"<<endl;
 			tr_mat =this->estTrans(curr_pc,prev_cld);
 			/* Add edge weights between current and previous */
-			cout<< "Add edge weights between current and previous"<<endl;
-			this->addEdge(tr_mat); 
+			cout<< "-->Add edge weights between current and previous"<<endl;
+			
+			
+			/* evaluate the validity of edge transforms */
+			/*
+			pcl::registration::TransformationValidationEuclidean<pcl::PointXYZ, pcl::PointXYZ> tve;
+			tve.setMaxRange (0.1); // 1cm
+			pcl::PointCloud<pcl::PointXYZ>::Ptr source (new pcl::PointCloud<pcl::PointXYZ>);
+			*source = prev_cld;
+			pcl::PointCloud<pcl::PointXYZ>::Ptr target (new pcl::PointCloud<pcl::PointXYZ>);
+			*target = curr_pc;
+			double score = tve.validateTransformation (source, target, tr_mat);
+			cout<<score<<"<--Tr score"<<endl;
+			*/
+			
+			
+			this->addEdge(tr_mat,score);
 			prev_cld = curr_pc;
 			count++;
 		}
 		
 		ros::spinOnce();
 		}
-		boost::write_graphviz(cout, gr);
+		
+		/* write data onto a file for later optimization */
+		std::ofstream myfile,file;
+		myfile.open ("example.txt");
+		/* First write vertex onto file */
+		boost::tie(vertex_It, vertex_End) = boost::vertices(gr);
+		for(;vertex_It!=vertex_End;++vertex_It)
+		{
+			myfile<<"Vertex ";
+			myfile<<gr[*vertex_It].key;
+			myfile<<" ";
+			for (int i =0;i< 3;i++){
+				myfile<<gr[*vertex_It].data[i];
+				//std::cout<<pg.gr_[*pg.vertexIt_].data[i]<<std::endl;;
+				myfile<<" ";
+			}
+			myfile<<"\n";
+		
+			std::cout<<std::endl;
+		}
+
+		/* Write edges to same file */	
+		boost::tie(edge_It,edge_End) = boost::edges(gr);
+		for(;edge_It!=edge_End;++edge_It)
+		{
+			//myfile<<*pg.vertexIt_<;
+			myfile<<"Edge ";
+			myfile<<gr[*edge_It].src<<" "<<gr[*edge_It].obs<<" ";
+			Eigen::Matrix4f trfMat = gr[*edge_It].transformation;
+			for(int i = 0;i<16;i++){
+				myfile<< *(trfMat.data()+i)<< " ";
+			} 
+			/* 
+			for(size_t i =0;i<=trfMat.rows();i++ ){
+				for (size_t j = 0; j<=trfMat.cols();j++){
+					myfile<< *(trfMat.data()+i+j)<< " ";;	
+				}
+			
+			}*/
+			//myfile<<pg.gr_[*pg.edgeIt_].transformation;
+			myfile<< "\n";
+		
+		}
+		myfile.close();
+		
+		/*write edge scores to seperate file */
+		/*
+		file.open("edgeScores.txt");
+		boost::tie(edge_It,edge_End) = boost::edges(gr);
+		for(;edge_It!=edge_End;++edge_It)
+		{
+			//myfile<<*pg.vertexIt_<;
+			file<<"Edge ";
+			file<<gr[*edge_It].src<<" "<<gr[*edge_It].obs<<" "<<gr[*edge_It].score<<" ";
+			Eigen::Matrix4f trfMat = gr[*edge_It].transformation;
+			for(int i = 0;i<16;i++){
+				file<< *(trfMat.data()+i)<< " ";
+			} 
+			/* 
+			for(size_t i =0;i<=trfMat.rows();i++ ){
+				for (size_t j = 0; j<=trfMat.cols();j++){
+					myfile<< *(trfMat.data()+i+j)<< " ";;	
+				}
+			
+			}
+			//myfile<<pg.gr_[*pg.edgeIt_].transformation;
+			file<< "\n";
+		
+		}*/
+		file.close();
+	
+		//boost::write_graphviz(cout, gr);
 	}
 
 
