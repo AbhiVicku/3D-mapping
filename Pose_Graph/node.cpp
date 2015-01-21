@@ -151,7 +151,7 @@ pcl::PointCloud<pcl::PointXYZ> Node::randomSample(pcl::PointCloud<pcl::PointXYZ>
 	*in_cld_ptr = in_cld;
 	pcl::RandomSample<pcl::PointXYZ> sample(true);
 	sample.setInputCloud(in_cld_ptr);
-	sample.setSample(1000);  // 1000 pts
+	sample.setSample(5000);  // 1000 pts
 	std::vector<int> out_idx;
 	sample.filter(out_idx);
 	pcl::PointCloud<pcl::PointXYZ> out_cld;
@@ -187,7 +187,6 @@ Eigen::Matrix4f Node::estTrans(pcl::PointCloud<pcl::PointXYZ> first,pcl::PointCl
 	result = gicp.getFinalTransformation();
 	cout << gicp.getFitnessScore() << endl;
 	cout << gicp.getFinalTransformation() << endl;
-	cout <<gicp.hasConverged()<<endl;
 	//pcl::registration::TransformationEstimation2D< pcl::PointXYZ, pcl::PointXYZ, float >  ddTr; 	 
 	
 	//ddTr.estimateRigidTransformation(*first_pc,*second_pc,result);
@@ -255,7 +254,7 @@ Node::Node()
 {
 	pcl::PointCloud<pcl::PointXYZ> prev_cld; // one step buffer for clouds comparision
 	int count = 1; // counter for key of the vertex
-	threshold_distance=0.4; // thesholding for the distance travelled
+	threshold_distance=0.2; // thesholding for the distance travelled
 	
 	
 	/* Subscribe to odometry */ 
@@ -297,6 +296,9 @@ Node::Node()
 		/* Subscribe to point cloud */ 
 		//cout<<"Subscribe to point cloud"<<endl;
 		this->cloudSub();
+		
+		cout << "Current Odom: " << pose_x << " " << pose_y << endl;
+		cout << "Cloud Size: " << curr_pc.size() << endl;
 		
 		/* Calculate distance */
 		//cout<<"distance"<<endl;
@@ -378,7 +380,7 @@ Node::Node()
 			myfile<<"EDGE2 ";
 			myfile<<gr[*edge_It].src<<" "<<gr[*edge_It].obs<<" ";
 			Eigen::Matrix4f trfMat = gr[*edge_It].transformation;
-			result = atan(*(trfMat.data()+2) / *(trfMat.data()));
+			result = acos(*(trfMat.data()));
 			//According to the given file format:  forward, sideward, rotate, inf_ff, inf_fs, inf_ss, inf_rr,inf_fr,inf_sr
 			myfile<<*(trfMat.data()+12)<<" "<<*(trfMat.data()+13)<<" "<<result<<" "<<"1 0 1 1 0 0";
 			/*
@@ -422,7 +424,7 @@ Node::Node()
 			file<< "\n";
 		
 		}*/
-		//file.close();
+		file.close();
 	
 		//boost::write_graphviz(cout, gr);
 	}
