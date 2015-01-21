@@ -70,6 +70,7 @@ class Node{
 		struct pose_{
 			int key;
 			std::vector<double>  data;
+			pcl::PointCloud<pcl::PointXYZ> cld_data;
 		};
 		
 		// Custom edge properties as constraints
@@ -91,7 +92,7 @@ class Node{
 		typedef boost::graph_traits<Graph>::vertex_descriptor Vertex;
 		typedef boost::graph_traits<Graph>::edge_descriptor Edge;
 		Graph gr;
-		Graph::vertex_iterator vertex_It,vertex_End;
+		Graph::vertex_iterator vertex_It,vertex_End,vertex_i,vertex_e;
 		Graph::edge_iterator edge_It,edge_End;
 		
 		Node(); //constructor
@@ -111,7 +112,7 @@ class Node{
 		Eigen::Matrix4f estTrans(pcl::PointCloud<pcl::PointXYZ> first,pcl::PointCloud<pcl::PointXYZ> second);	
 		pcl::PointCloud<pcl::PointXYZ> randomSample(pcl::PointCloud<pcl::PointXYZ> in_cld);
 	
-		
+		void detectLoopClosure(Vertex curr_v);
 		/* calculate distance travelled */ 
 		double calculateDist(vector<double> curr_odom,vector<double> prev_odom);
 		
@@ -175,8 +176,8 @@ Eigen::Matrix4f Node::estTrans(pcl::PointCloud<pcl::PointXYZ> first,pcl::PointCl
 	*second_pc = this->randomSample(second);
 	
 	pcl::GeneralizedIterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> gicp;
-	gicp.setMaximumIterations(10);
-    gicp.setRANSACIterations(5);
+	gicp.setMaximumIterations(5); // no. of Iterations for optimization
+    gicp.setRANSACIterations(5); // no. of iterations for Ransac part.
 	
     gicp.setInputCloud(first_pc);
     gicp.setInputTarget(second_pc);
@@ -211,6 +212,7 @@ void Node::cloudSub(){
 	}
 
 
+
 /* calculate distance travelled */ 
 double Node::calculateDist(vector<double> curr_odom,vector<double> prev_odom){
 	double dist;	
@@ -225,6 +227,7 @@ void Node::addVertex(int v,std::vector<double> odom){
 	v1 = boost::add_vertex(gr);
 	gr[v1].key = v ;
 	gr[v1].data = odom;
+	gr[v1].cld_data = curr_pc;
 	return;
 	}
 		
@@ -247,7 +250,37 @@ void Node::initGraph(int v,std::vector<double> odom){
 	v1 = boost::add_vertex(gr);
 	gr[v1].key = v ;
 	gr[v1].data = odom;
+	gr[v1].cld_data = curr_pc;
 	}
+
+
+void Node::detectLoopClosure(Vertex curr_v){
+	/* If the odom value is nearest to a vertex then add edge.
+	 * Loop closure is detected by comparing odom value,  if they are less than threshold. 
+	 *  */
+	// since graph is not big , iterating over all of the veritces .Otherwise various searching methods can be implemented 
+	boost::tie(vertex_It, vertex_End) = boost::vertices(gr);
+	double dist;
+	for(;vertex_It!=vertex_End;++vertex_It){
+		// it is not equal to curr vertex and there is no edge already present
+		dist = this->calculateDist(gr[curr_v].data,gr[*vertex_It].data);
+		cout<<dist<<endl;
+		if (!boost::edge(curr_v,(*vertex_It),gr).second && dist < 0.3 && dist != 0.0){
+			cout<<"Loop Closure detected"<<endl;
+			Eigen::Matrix4f transform  = this->estTrans(gr[*vertex_It].cld_data, gr[curr_v].cld_data);
+			Edge e;
+			e = (boost::add_edge(curr_v,*(vertex_It),gr)).first;
+			gr[e].transformation = transform;
+			cout <<gr[curr_v].key<<" "<<gr[*vertex_It].key<<endl;
+			gr[e].src = gr[curr_v].key;
+			gr[e].obs = gr[*vertex_It].key; // What is vertex_it pointing to 
+			gr[e].score = 0.0;
+			boost::write_graphviz(cout, gr);
+			}
+		
+	}	
+	
+	}	
 		
 /* main node process */ 
 Node::Node()
@@ -321,6 +354,7 @@ Node::Node()
 		{
 			/*  add vertex to graph  */
 			//cout<<"-->add vertex to graph"<<endl;
+			
 			this->addVertex(count,now_odom);
 			/* calculate transform */
 			//cout<<"-->calculate transform"<<endl;
@@ -342,8 +376,9 @@ Node::Node()
 			cout<<score<<"<--Tr score"<<endl;
 			*/
 			
-			
+			boost::tie(vertex_i, vertex_e) = boost::vertices(gr);
 			this->addEdge(tr_mat,0.000);
+			this->detectLoopClosure(*(vertex_e-1));
 			prev_cld = curr_pc;
 			count++;
 		}
