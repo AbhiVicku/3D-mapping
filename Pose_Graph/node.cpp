@@ -143,7 +143,7 @@ void Node::odomCallbk(nav_msgs::Odometry odom_data){
 /* Odometry subscriber function */
 void Node::odomSub(){
 	uint32_t queue_size = 1;
-	odom = nh.subscribe<nav_msgs::Odometry>("/pose",queue_size,&Node::odomCallbk,this);
+	odom = nh.subscribe<nav_msgs::Odometry>("/odom",queue_size,&Node::odomCallbk,this);
 	}	
 
 pcl::PointCloud<pcl::PointXYZ> Node::randomSample(pcl::PointCloud<pcl::PointXYZ> in_cld){
@@ -176,8 +176,8 @@ Eigen::Matrix4f Node::estTrans(pcl::PointCloud<pcl::PointXYZ> first,pcl::PointCl
 	*second_pc = this->randomSample(second);
 	
 	pcl::GeneralizedIterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> gicp;
-	gicp.setMaximumIterations(5); // no. of Iterations for optimization
-    gicp.setRANSACIterations(5); // no. of iterations for Ransac part.
+	//gicp.setMaximumIterations(10); // no. of Iterations for optimization
+    //gicp.setRANSACIterations(10); // no. of iterations for Ransac part.
 	
     gicp.setInputCloud(first_pc);
     gicp.setInputTarget(second_pc);
@@ -265,7 +265,7 @@ void Node::detectLoopClosure(Vertex curr_v){
 		// it is not equal to curr vertex and there is no edge already present
 		dist = this->calculateDist(gr[curr_v].data,gr[*vertex_It].data);
 		cout<<dist<<endl;
-		if (!boost::edge(curr_v,(*vertex_It),gr).second && dist < 0.3 && dist != 0.0){
+		if (!boost::edge(curr_v,(*vertex_It),gr).second && dist < 0.1 && dist != 0.0){
 			cout<<"Loop Closure detected"<<endl;
 			Eigen::Matrix4f transform  = this->estTrans(gr[*vertex_It].cld_data, gr[curr_v].cld_data);
 			Edge e;
@@ -334,7 +334,7 @@ Node::Node()
 		cout << "Cloud Size: " << curr_pc.size() << endl;
 		
 		/* Calculate distance */
-		//cout<<"distance"<<endl;
+		cout<<"distance"<<endl;
 		double distance;
 		std::vector<double> now_odom;
 		now_odom.push_back(pose_x);
