@@ -152,7 +152,7 @@ pcl::PointCloud<pcl::PointXYZ> Node::randomSample(pcl::PointCloud<pcl::PointXYZ>
 	*in_cld_ptr = in_cld;
 	pcl::RandomSample<pcl::PointXYZ> sample(true);
 	sample.setInputCloud(in_cld_ptr);
-	sample.setSample(5000);  // 1000 pts
+	sample.setSample(2500);  // 1000 pts
 	std::vector<int> out_idx;
 	sample.filter(out_idx);
 	pcl::PointCloud<pcl::PointXYZ> out_cld;
@@ -176,8 +176,8 @@ Eigen::Matrix4f Node::estTrans(pcl::PointCloud<pcl::PointXYZ> first,pcl::PointCl
 	*second_pc = this->randomSample(second);
 	
 	pcl::GeneralizedIterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> gicp;
-	//gicp.setMaximumIterations(10); // no. of Iterations for optimization
-    //gicp.setRANSACIterations(10); // no. of iterations for Ransac part.
+	gicp.setMaximumIterations(5); // no. of Iterations for optimization
+    	gicp.setRANSACIterations(5); // no. of iterations for Ransac part.
 	
     gicp.setInputCloud(first_pc);
     gicp.setInputTarget(second_pc);
@@ -265,7 +265,7 @@ void Node::detectLoopClosure(Vertex curr_v){
 		// it is not equal to curr vertex and there is no edge already present
 		dist = this->calculateDist(gr[curr_v].data,gr[*vertex_It].data);
 		cout<<dist<<endl;
-		if (!boost::edge(curr_v,(*vertex_It),gr).second && dist < 0.1 && dist != 0.0){
+		if (!boost::edge(curr_v,(*vertex_It),gr).second && dist < 0.15 && dist != 0.0){
 			cout<<"Loop Closure detected"<<endl;
 			Eigen::Matrix4f transform  = this->estTrans(gr[*vertex_It].cld_data, gr[curr_v].cld_data);
 			Edge e;
@@ -287,7 +287,7 @@ Node::Node()
 {
 	pcl::PointCloud<pcl::PointXYZ> prev_cld; // one step buffer for clouds comparision
 	int count = 1; // counter for key of the vertex
-	threshold_distance=0.2; // thesholding for the distance travelled
+	threshold_distance=0.15; // thesholding for the distance travelled
 	
 	
 	/* Subscribe to odometry */ 
