@@ -44,7 +44,7 @@
 #include <string>
 #include <pcl/filters/statistical_outlier_removal.h>
 #include <pcl/filters/passthrough.h>
-#define SS 1000 // sample size for random sampling
+#define SS 3500 // sample size for random sampling
 const float res = 0.02; // resolution for the octomap
 int count =1; 	// counter for the file names
 ros::Publisher octomap_pub ;
@@ -120,7 +120,7 @@ void publishMapAsMarkers(octomap::OcTreeStamped octree_msg) {
 			double x = it.getX();
 			double y = it.getY();
 			double z = it.getZ();
-			std::cout<<x<<" "<<y<<" "<<z<<std::endl;
+			//std::cout<<x<<" "<<y<<" "<<z<<std::endl;
 			
 			size_t depth = it.getDepth();
 			// Insert a point for the leaf's cube
@@ -130,7 +130,7 @@ void publishMapAsMarkers(octomap::OcTreeStamped octree_msg) {
 			leaf_origin.z = z;
 			msg.markers[depth].points.push_back(leaf_origin);
 			// Determine and set the leaf's color by height
-			std::cout<<"determining color by height"<<std::endl;
+			//std::cout<<"determining color by height"<<std::endl;
 			msg.markers[depth].colors.push_back(getColorByHeight(leaf_origin.z));
 			
 		}
@@ -181,7 +181,7 @@ void updateOctomap(octomap::PointCloud& pc_msg){
 // Ros msg callback for sensor_msgs
 void processCloud(const sensor_msgs::PointCloud2 msg)
 {
-	 
+	ros::Time start_time = ros::Time::now();
 	//********* Retirive and process raw pointcloud************
 	// Initialize octomap with given resolution. 
 	//octomap::OcTreeStamped tree(res);
@@ -199,23 +199,23 @@ void processCloud(const sensor_msgs::PointCloud2 msg)
 	*cloud_0_ptr = pcl_pc;
 	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered (new pcl::PointCloud<pcl::PointXYZ>);
 
-	/*
-	// filter point cloud 
-	pcl::StatisticalOutlierRemoval<pcl::PointXYZ> dy_sor;
-	dy_sor.setInputCloud (cloud_0_ptr);
-	dy_sor.setMeanK (20);
-	dy_sor.setStddevMulThresh (0.5);
-	dy_sor.filter (*cloud_0_ptr);
-	*/
-	/*
+	
+	
+	
 	pcl::PassThrough<pcl::PointXYZ> pass;
   	pass.setInputCloud (cloud_0_ptr);
   	pass.setFilterFieldName ("z");
-  	pass.setFilterLimits (0.0, 4.0);
+  	pass.setFilterLimits (0.0, 2.5);
   	//pass.setFilterLimitsNegative (true);
   	pass.filter (*cloud_filtered);
-	*/
-	*cloud_filtered = randomSample(pcl_pc);
+	// filter point cloud 
+	pcl::StatisticalOutlierRemoval<pcl::PointXYZ> dy_sor;
+	dy_sor.setInputCloud (cloud_filtered);
+	dy_sor.setMeanK (20);
+	dy_sor.setStddevMulThresh (0.5);
+	dy_sor.filter (*cloud_filtered);
+	
+	//*cloud_filtered = randomSample(*cloud_filtered);
 	// Add the given point cloud to octomap Pointcloud data structure. 
 	for(int i = 0;i<cloud_filtered->points.size();i++){
 		oct_pc.push_back((float) cloud_filtered->points[i].x,(float) cloud_filtered->points[i].y,(float) cloud_filtered->points[i].z);
@@ -239,13 +239,14 @@ void processCloud(const sensor_msgs::PointCloud2 msg)
 	//**********************************************************	
 	*/
 	
-	/*
+	
 	//publish the octomap 
 	std::cout<<"publishing octomap"<<std::endl;
-	//publishMapAsMarkers(tree);
+	publishMapAsMarkers(tree);
 		
 	std::cout<<"published"<<std::endl;	
-	*/
+	ros::Duration delta_t = ros::Time::now() - start_time;
+	std::cout<< "Time for update :"<< delta_t<<std::endl;
 	
 	}
 
